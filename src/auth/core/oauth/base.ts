@@ -95,8 +95,43 @@ export class OAuthClient<T> {
         Authorization: `${tokenType} ${accessToken}`,
       },
     })
-      .then(res => res.json())
-      .then(rawData => {
+      .then((res) => res.json())
+      .then(async (rawData) => {
+        // For the GitHub provider, /user endpoint only returns public email
+        // User preferably might hide or not pick a public email
+        // so we need to fetch the emails from the /user/emails endpoint (needs user:email scope)
+        // Reference: https://docs.github.com/en/rest/users/emails?apiVersion=2022-11-28#list-email-addresses-for-the-authenticated-user
+        if (this.provider === "github" && !rawData.email) {
+          const { data, success, error } = await fetch(
+            "https://api.github.com/user/emails",
+            {
+              headers: {
+                Authorization: `${tokenType} ${accessToken}`,
+                Accept: "application/vnd.github+json",
+              },
+            }
+          )
+            .then((res) => res.json())
+            .then((rawData) => {
+              // GitHub returns an array of objects with email, primary, verified and visibility (nullable string) properties
+              // If we reach that point, we can assume the user has a private email, so no need to check visibility
+              return z
+                .array(
+                  z.object({
+                    email: z.string().email(),
+                    primary: z.boolean(),
+                    verified: z.boolean(),
+                  })
+                )
+                .safeParse(rawData)
+            })
+
+          if (!success) throw new InvalidUserError(error)
+          const email = data.find((email) => email.primary && email.verified)
+          if (email == null) throw new Error("No email found") // Can create a custom error for this
+          rawData.email = email.email
+        }
+
         const { data, success, error } = this.userInfo.schema.safeParse(rawData)
         if (!success) throw new InvalidUserError(error)
 
