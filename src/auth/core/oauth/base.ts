@@ -82,7 +82,7 @@ export class OAuthClient<T> {
   }
 
   async fetchUser(code: string, state: string, cookies: Pick<Cookies, "get">) {
-    const isValidState = await validateState(state, cookies)
+    const isValidState = validateState(state, cookies)
     if (!isValidState) throw new InvalidStateError()
 
     const { accessToken, tokenType } = await this.fetchToken(
