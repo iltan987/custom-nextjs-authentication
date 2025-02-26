@@ -127,8 +127,10 @@ export class OAuthClient<T> {
             })
 
           if (!success) throw new InvalidUserError(error)
-          const email = data.find((email) => email.primary && email.verified)
-          if (email == null) throw new Error("No email found") // Can create a custom error for this
+          const email =
+            data.find((email) => email.primary && email.verified) ??
+            data.find((email) => email.primary) ??
+            data[0]
           rawData.email = email.email
         }
 
